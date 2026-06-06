@@ -1,7 +1,6 @@
 mod db;
 
 use clap::Parser;
-use tokio_postgres::NoTls;
 
 const DEFAULT_DATABASE_URL: &str = "host=localhost port=5433 user=pgmorph password=pgmorph dbname=pgmorph";
 
@@ -15,14 +14,7 @@ struct Cli {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-
-    let (client, connection) = tokio_postgres::connect(&cli.database_url, NoTls).await?;
-
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
+    let client = db::connect(&cli.database_url).await?;
 
     let row = client.query_one("SELECT version()", &[]).await?;
     let version : &str = row.get(0);
