@@ -1,3 +1,5 @@
+mod db;
+
 use clap::Parser;
 use tokio_postgres::NoTls;
 
@@ -15,8 +17,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     let (client, connection) = tokio_postgres::connect(&cli.database_url, NoTls).await?;
-    //connect to db
-    //select version
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
