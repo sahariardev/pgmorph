@@ -82,12 +82,18 @@ pub async fn introspect_table(
     }
 
     let columns = fetch_columns(client, table, schema).await?;
-    let primary_keys = fetch_primary_key(client, table, schema).await?;
+    let primary_key = fetch_primary_key(client, table, schema).await?;
     let foreign_keys = fetch_foreign_keys(client, table, schema).await?;
+    let indexes = fetch_indexes(client, table, schema).await?;
 
-    //fetch  index
-    //return tableinfo
-    todo!("need to implement this")
+    Ok(TableInfo {
+        schema: schema.to_string(),
+        name: table.to_string(),
+        columns,
+        primary_key,
+        indexes,
+        foreign_keys,
+    })
 }
 
 async fn table_exists(client: &Client, table: &str, schema: &str) -> Result<bool, IntrospectError> {
@@ -183,17 +189,49 @@ async fn fetch_foreign_keys(
             fk.columns.push(column);
             fk.references_columns.push(reference_column);
         } else {
-            foreign_keys.push(
-                ForeignKey{
-                    name,
-                    columns: vec![column],
-                    reference_schema,
-                    reference_table,
-                    references_columns: vec![reference_column],
-                }
-            )
+            foreign_keys.push(ForeignKey {
+                name,
+                columns: vec![column],
+                reference_schema,
+                reference_table,
+                references_columns: vec![reference_column],
+            })
         }
     }
 
     Ok(foreign_keys)
+}
+
+async fn fetch_indexes(
+    client: &Client,
+    table: &str,
+    schema: &str,
+) -> Result<Vec<Index>, IntrospectError> {
+    let rows = client
+        .query(
+            "SELECT * \
+            FROM pg_class tc \
+            JOIN pg_namespace tn ON tn.oid = tc.realnamespace \
+            JOIN pg_index ix ON ix.indrelid = tc.oid\
+            JOIN pg_class ic ON ic.oid = ix.indexrelid \
+            JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS cols(attnum, ordinality) ON true \
+            JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = cols.attnum \
+            WHERE tn.nspname = $1 \
+            AND tc.realname = $2 \
+            AND a.attnum > 0 \
+            GROUP BY ic.realname, ix.indisunique, ix.indisprimary\
+            ORDER BY ic.realname",
+            &[&schema, &table],
+        )
+        .await?;
+
+    Ok(rows
+        .iter()
+        .map(|row| Index {
+            name: row.get(0),
+            columns: row.get(3),
+            is_unique: row.get(1),
+            is_primary: row.get(2),
+        })
+        .collect())
 }
