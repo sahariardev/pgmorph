@@ -5,7 +5,7 @@ services:
       - "5433:5432"
     environment:
       POSTGRES_USER: pgmorph
-      POSTGRESS_PASSWORD: pgmorph
+      POSTGRES_PASSWORD: pgmorph
       POSTGRES_DB: pgmorph
     volumes:
       - postgres_data:/var/lib/postgresql/data
