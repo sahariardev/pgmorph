@@ -99,7 +99,7 @@ pub async fn introspect_table(
 async fn table_exists(client: &Client, table: &str, schema: &str) -> Result<bool, IntrospectError> {
     let row = client
         .query_one(
-            "SELECT EXISTS(SELECT 1 FROM information_schema.tables \
+            "SELECT EXISTS(SELECT 1 FROM information_schema.tables 
                                         WHERE table_name = $1 AND table_schema = $2)",
             &[&table, &schema],
         )
@@ -114,9 +114,9 @@ async fn fetch_columns(
 ) -> Result<Vec<Column>, IntrospectError> {
     let rows = client
         .query(
-            "SELECT column_name, data_type, is_nullable, column_default \
-                                                 FROM information_schema.columns \
-                                                 WHERE table_schema = $1 AND table_name = $2 \
+            "SELECT column_name, data_type, is_nullable, column_default 
+                                                 FROM information_schema.columns 
+                                                 WHERE table_schema = $1 AND table_name = $2 
                                                  ORDER BY ordinal_position",
             &[&schema, &table],
         )
@@ -137,13 +137,13 @@ async fn fetch_primary_key(
     table: &str,
     schema: &str,
 ) -> Result<Vec<String>, IntrospectError> {
-    let rows = client.query("\
-                SELECT kcu.column_name \
-                FROM information_schema.table_constrains tc \
-                JOIN information_schema.key_column_usage kcu \
-                    ON (tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name) \
-                WHERE  tc.table_schema = $1 AND tc.table_name = $2 AND tc.constraint_type = 'PRIMARY_KEY' \
-                ORDER BY kcu.ordinal_position \
+    let rows = client.query("
+                SELECT kcu.column_name 
+                FROM information_schema.table_constrains tc 
+                JOIN information_schema.key_column_usage kcu 
+                    ON (tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name) 
+                WHERE  tc.table_schema = $1 AND tc.table_name = $2 AND tc.constraint_type = 'PRIMARY_KEY' 
+                ORDER BY kcu.ordinal_position 
     ", &[&schema, &table]).await?;
 
     Ok(rows.iter().map(|row| row.get(0)).collect())
@@ -209,17 +209,21 @@ async fn fetch_indexes(
 ) -> Result<Vec<Index>, IntrospectError> {
     let rows = client
         .query(
-            "SELECT * \
-            FROM pg_class tc \
-            JOIN pg_namespace tn ON tn.oid = tc.realnamespace \
-            JOIN pg_index ix ON ix.indrelid = tc.oid\
-            JOIN pg_class ic ON ic.oid = ix.indexrelid \
-            JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS cols(attnum, ordinality) ON true \
-            JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = cols.attnum \
-            WHERE tn.nspname = $1 \
-            AND tc.realname = $2 \
-            AND a.attnum > 0 \
-            GROUP BY ic.realname, ix.indisunique, ix.indisprimary\
+            "SELECT
+            ic.relname AS index_name,
+            ix.indisunique,
+            ix.indisprimary,
+            array_agg(a.attname ORDER BY cols.ordinality) AS columns
+            FROM pg_class tc 
+            JOIN pg_namespace tn ON tn.oid = tc.realnamespace 
+            JOIN pg_index ix ON ix.indrelid = tc.oid
+            JOIN pg_class ic ON ic.oid = ix.indexrelid 
+            JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS cols(attnum, ordinality) ON true 
+            JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = cols.attnum 
+            WHERE tn.nspname = $1 
+            AND tc.realname = $2 
+            AND a.attnum > 0 
+            GROUP BY ic.realname, ix.indisunique, ix.indisprimary
             ORDER BY ic.realname",
             &[&schema, &table],
         )
