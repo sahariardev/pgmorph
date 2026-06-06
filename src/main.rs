@@ -1,26 +1,26 @@
+mod cli;
 mod db;
 
 use clap::Parser;
-
-const DEFAULT_DATABASE_URL: &str = "host=localhost port=5433 user=pgmorph password=pgmorph dbname=pgmorph";
-
-#[derive(Parser, Debug)]
-#[command(name = "pgmorph", about = "Zero-downtime schema migration for postgresql")]
-struct Cli {
-    #[arg(long, env = "DATABASE_URL", default_value = DEFAULT_DATABASE_URL)]
-    database_url: String,
-}
+use crate::cli::Command;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
+    let cli = cli::Cli::parse();
     let client = db::connect(&cli.database_url).await?;
 
-    let row = client.query_one("SELECT version()", &[]).await?;
-    let version : &str = row.get(0);
+    match cli.command {
+        None => {
+            let row = client.query_one("SELECT version()", &[]).await?;
+            let version: &str = row.get(0);
 
-    print!("Connected to postgress");
-    println!("version: {}", version);
+            print!("Connected to postgress");
+            println!("version: {}", version);
+        },
+        Some(Command::Introspect {table}) => {
+            println!("Introspect is not implemented yet!! passed table name is {}", table);
+        }
+    }
 
     Ok(())
 }
