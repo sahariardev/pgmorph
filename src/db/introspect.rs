@@ -20,9 +20,9 @@ pub struct Index {
 pub struct ForeignKey {
     pub name: String,
     pub columns: Vec<String>,
-    pub references_schemas: String,
-    pub references_table: String,
-    pub references_columns: String,
+    pub reference_schema: String,
+    pub reference_table: String,
+    pub references_columns: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -83,8 +83,9 @@ pub async fn introspect_table(
 
     let columns = fetch_columns(client, table, schema).await?;
     let primary_keys = fetch_primary_key(client, table, schema).await?;
+    let foreign_keys = fetch_foreign_keys(client, table, schema).await?;
 
-    //fetch fk, index
+    //fetch  index
     //return tableinfo
     todo!("need to implement this")
 }
@@ -140,4 +141,59 @@ async fn fetch_primary_key(
     ", &[&schema, &table]).await?;
 
     Ok(rows.iter().map(|row| row.get(0)).collect())
+}
+
+async fn fetch_foreign_keys(
+    client: &Client,
+    table: &str,
+    schema: &str,
+) -> Result<Vec<ForeignKey>, IntrospectError> {
+    let rows = client
+        .query(
+            "SELECT
+                  tc.constraint_name,
+                  kcu.column_name,
+                  ccu.table_schema AS foreign_table_schema,
+                  ccu.table_name AS foreign_table_name,
+                  ccu.column_name AS foreign_column_name,
+                  kcu.ordinal_position
+                  FROM information_schema.table_constraints AS tc
+                  JOIN information_schema.key_column_usage AS kcu
+                    ON (tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name)
+                  JOIN information_schema.constraint_column_usage AS ccu
+                    ON (tc.constraint_schema = ccu.constraint_schema AND tc.constraint_name = ccu.constraint_name)
+                  WHERE tc.constraint_type = 'FOREIGN KEY'
+                  AND tc.table_schema = $1 AND tc.table_name = $2
+                  ORDER BY tc.constraint_name, kcu.ordinal_position
+                ",
+            &[&schema, &table],
+        )
+        .await?;
+
+    let mut foreign_keys: Vec<ForeignKey> = Vec::new();
+
+    for row in &rows {
+        let name: String = row.get(0);
+        let column: String = row.get(1);
+        let reference_schema: String = row.get(2);
+        let reference_table: String = row.get(3);
+        let reference_column: String = row.get(4);
+
+        if let Some(fk) = foreign_keys.iter_mut().find(|fk| fk.name == name) {
+            fk.columns.push(column);
+            fk.references_columns.push(reference_column);
+        } else {
+            foreign_keys.push(
+                ForeignKey{
+                    name,
+                    columns: vec![column],
+                    reference_schema,
+                    reference_table,
+                    references_columns: vec![reference_column],
+                }
+            )
+        }
+    }
+
+    Ok(foreign_keys)
 }
