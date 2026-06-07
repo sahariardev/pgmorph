@@ -1,5 +1,6 @@
 mod cli;
 mod db;
+mod config;
 
 use crate::cli::Command;
 use clap::Parser;

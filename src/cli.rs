@@ -8,6 +8,15 @@ pub struct Cli {
     #[arg(long, env = "DATABASE_URL", default_value = DEFAULT_DATABASE_URL, global = true)]
     pub database_url: String,
 
+    #[arg(long, global = true)]
+    pub dry_run: bool,
+
+    #[arg(long, default_value = "5s", global = true)]
+    pub lock_timeout: String,
+
+    #[arg(long, default_value = "5", global = true)]
+    pub max_attempts: u32,
+
     #[command(subcommand)]
     pub command: Option<Command>
 }
