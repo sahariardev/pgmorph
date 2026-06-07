@@ -17,5 +17,8 @@ pub enum Command {
     Introspect {
         #[arg(long)]
         table: String,
+
+        #[arg(long, default_value = "public")]
+        schema: String
     }
 }

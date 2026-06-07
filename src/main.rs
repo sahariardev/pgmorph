@@ -1,8 +1,8 @@
 mod cli;
 mod db;
 
-use clap::Parser;
 use crate::cli::Command;
+use clap::Parser;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,9 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             print!("Connected to postgress");
             println!("version: {}", version);
-        },
-        Some(Command::Introspect {table}) => {
-            println!("Introspect is not implemented yet!! passed table name is {}", table);
+        }
+        Some(Command::Introspect { table, schema }) => {
+            let info = db::introspect_table(&client, &schema, &table).await?;
+            println!("{}", db::format_table_info(&info));
         }
     }
 

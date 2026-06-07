@@ -46,7 +46,7 @@ impl std::fmt::Display for IntrospectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             IntrospectError::TableNotFound { schema, table } => {
-                write!(f, "Table {} not found", schema)
+                write!(f, "Table {} {} not found", table, schema)
             }
             IntrospectError::Database(err) => {
                 write!(f, "Database error: {}", err)
