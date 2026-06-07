@@ -1417,6 +1417,7 @@ name = "pgmorph"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "log",
  "rand 0.10.1",
  "testcontainers",
  "tokio",

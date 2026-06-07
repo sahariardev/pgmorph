@@ -7,6 +7,7 @@ edition = "2024"
 clap = { version = "4.6.1", features = ["derive", "env"] }
 tokio = { version = "1.52.3", features = ["full"] }
 tokio-postgres = "0.7.17"
+log = "0.4.32"
 
 [dev-dependencies]
 rand = "0.10.1"

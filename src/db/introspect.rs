@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use tokio_postgres::Client;
 
 #[derive(Debug, Clone)]
@@ -94,6 +95,94 @@ pub async fn introspect_table(
         indexes,
         foreign_keys,
     })
+}
+
+pub fn format_table_info(info: &TableInfo) -> String {
+    let mut output = String::new();
+
+    writeln!(output, "Table: {} {}", info.schema, info.name).unwrap();
+    writeln!(output).unwrap();
+
+    writeln!(output, "Columns:").unwrap();
+
+    if info.columns.is_empty() {
+        writeln!(output, " (none)").unwrap();
+    } else {
+        for column in &info.columns {
+            let nullable = if column.nullable { "NULL" } else { "NOT NULL" };
+            let default = column.default_value.as_deref().unwrap_or("(no default)");
+            writeln!(
+                output,
+                "    {:<16} {:<20} {:<10} default: {default}",
+                column.name, column.data_type, nullable
+            )
+            .unwrap();
+        }
+    }
+
+    writeln!(output).unwrap();
+    writeln!(output, "Primary Key:").unwrap();
+
+    if info.primary_key.is_empty() {
+        writeln!(output, "  (none)").unwrap();
+    } else {
+        writeln!(output, "  {}", info.primary_key.join(", ")).unwrap();
+    }
+
+    writeln!(output).unwrap();
+
+    writeln!(output, "Indexes:").unwrap();
+
+    if info.indexes.is_empty() {
+        writeln!(output, " (none)").unwrap();
+    } else {
+        for index in &info.indexes {
+            let mut flags = Vec::new();
+
+            if index.is_primary {
+                flags.push("PRIMARY");
+            }
+            if index.is_unique {
+                flags.push("UNIQUE");
+            }
+            let flag_text = if flags.is_empty() {
+                String::from("NON-UNIQUE")
+            } else {
+                flags.join(", ")
+            };
+
+            writeln!(
+                output,
+                "  {} ({}) on ({})",
+                index.name,
+                flag_text,
+                index.columns.join(", ")
+            )
+            .unwrap()
+        }
+    }
+
+    writeln!(output).unwrap();
+
+    writeln!(output, "Foreign keys:").unwrap();
+    if info.foreign_keys.is_empty() {
+        writeln!(output, " (none)").unwrap();
+    } else {
+        for foreign_key in &info.foreign_keys {
+            writeln!(
+                output,
+                "    {}: ({}) -> {}.{}({})",
+                foreign_key.name,
+                foreign_key.columns.join(", "),
+                foreign_key.reference_schema,
+                foreign_key.reference_table,
+                foreign_key.references_columns.join(", ")
+            )
+            .unwrap();
+        }
+    }
+
+    output
 }
 
 async fn table_exists(client: &Client, table: &str, schema: &str) -> Result<bool, IntrospectError> {
