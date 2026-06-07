@@ -228,7 +228,7 @@ async fn fetch_primary_key(
 ) -> Result<Vec<String>, IntrospectError> {
     let rows = client.query("
                 SELECT kcu.column_name 
-                FROM information_schema.table_constrains tc 
+                FROM information_schema.table_constraints tc
                 JOIN information_schema.key_column_usage kcu 
                     ON (tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name) 
                 WHERE  tc.table_schema = $1 AND tc.table_name = $2 AND tc.constraint_type = 'PRIMARY_KEY' 
@@ -304,16 +304,16 @@ async fn fetch_indexes(
             ix.indisprimary,
             array_agg(a.attname ORDER BY cols.ordinality) AS columns
             FROM pg_class tc 
-            JOIN pg_namespace tn ON tn.oid = tc.realnamespace 
+            JOIN pg_namespace tn ON tn.oid = tc.relnamespace
             JOIN pg_index ix ON ix.indrelid = tc.oid
             JOIN pg_class ic ON ic.oid = ix.indexrelid 
             JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS cols(attnum, ordinality) ON true 
             JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = cols.attnum 
             WHERE tn.nspname = $1 
-            AND tc.realname = $2 
+            AND tc.relname = $2
             AND a.attnum > 0 
-            GROUP BY ic.realname, ix.indisunique, ix.indisprimary
-            ORDER BY ic.realname",
+            GROUP BY ic.relname, ix.indisunique, ix.indisprimary
+            ORDER BY ic.relname",
             &[&schema, &table],
         )
         .await?;
