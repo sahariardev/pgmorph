@@ -29,5 +29,25 @@ pub enum Command {
 
         #[arg(long, default_value = "public")]
         schema: String
+    },
+
+    AddColumn {
+        #[arg(long)]
+        table: String,
+
+        #[arg(long, default_value = "public")]
+        schema: String,
+
+        #[arg(long)]
+        column: String,
+
+        #[arg(long, alias = "type")]
+        data_type: String,
+
+        #[arg(long)]
+        default: Option<String>,
+
+        #[arg(long)]
+        not_null: bool,
     }
 }
