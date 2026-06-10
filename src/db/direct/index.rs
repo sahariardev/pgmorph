@@ -1,4 +1,6 @@
 use crate::db::retry::RetryError;
+use std::fmt::Pointer;
+use tokio_postgres::Client;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum IndexState {
@@ -106,4 +108,81 @@ fn validate_identifier(name: &str) -> Result<(), AddIndexError> {
 
 fn default_index_name(table: &str, columns: &[String]) -> String {
     format!("{}_{}_idx", table, columns.join("_"))
+}
+
+pub fn build_create_index_sql(
+    args: &AddIndexArgs,
+    index_name: &str,
+) -> Result<String, AddIndexError> {
+    validate_identifier(index_name)?;
+    validate_identifier(&args.table)?;
+    validate_identifier(&args.schema)?;
+
+    if args.columns.is_empty() {
+        return Err(AddIndexError::InvalidColumns {
+            message: "At least one column is required".to_string(),
+        });
+    }
+
+    for columns in &args.columns {
+        validate_identifier(columns)?;
+    }
+
+    let unique = if args.unique { "UNIQUE " } else { "" };
+    let qualified_table = format!("\"{}\".\"{}\"", args.schema, args.table);
+    let column_list = args
+        .columns
+        .iter()
+        .map(|column| format!("\"{column}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    Ok(format!(
+        "CREATE {unique}INDEX CONCURRENTLY IF NOT EXISTS \"{index_name}\" ON {qualified_table} ({column_list})"
+    ))
+}
+
+async fn fetch_index_state(
+    client: &Client,
+    schema: &str,
+    index_name: &str,
+) -> Result<IndexState, AddIndexError> {
+    let rows = client.query(
+        "SELECT i.indisvalid FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_index i ON i.indexrelid = c.oid
+        WHERE n.nspname = $1
+        AND c.relname = $2
+        AND c.relkind = 'i'",
+        &[&schema, &index_name]).await?;
+
+    match rows.len() {
+        0 => Ok(IndexState::Missing),
+        1 => {
+            let is_valid: bool = rows[0].get(0);
+            if is_valid {
+                Ok(IndexState::Valid)
+            } else {
+                Ok(IndexState::Invalid)
+            }
+        },
+        _ => Err(AddIndexError::InvalidColumns {
+            message: format!("multiple indexes name '{index_name}' in schema '{schema}'")
+        })
+    }
+
+}
+pub fn build_drop_index_sql(schema: &str, index_name: &str) -> Result<String, AddIndexError> {
+    validate_identifier(schema)?;
+    validate_identifier(&index_name)?;
+
+    Ok(format!(
+        "DROP INDEX CONCURRENTLY IF EXISTS \"{schema}\".\"{index_name}\""
+    ))
+}
+
+fn build_validity_check_sql(schema: &str, index_name: &str) -> String {
+    format!(
+        "SELECT indisvalid FROM pg_index WHERE indexrelid = '\"{schema}\".\"{index_name}\"'::regclass"
+    )
 }
