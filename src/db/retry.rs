@@ -37,7 +37,7 @@ pub fn is_lock_timeout(error: &tokio_postgres::Error) -> bool {
         .is_some_and(|db_error| db_error.code().code() == LOCK_TIMEOUT_SQLSTATE)
 }
 
-fn backoff_duration(attempt: u32, base_ms: u64) -> Duration {
+pub fn backoff_duration(attempt: u32, base_ms: u64) -> Duration {
     let exponent = attempt.saturating_sub(1).min(10);
     let base = base_ms.saturating_mul(1u64 << exponent);
     let jitter = (attempt as u64 * 137) % (base / 4 + 1);

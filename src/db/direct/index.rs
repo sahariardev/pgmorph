@@ -1,6 +1,8 @@
-use crate::db::retry::RetryError;
+use crate::config::MigrationConfig;
+use crate::db::retry::{run_ddl_with_retry, RetryError};
 use std::fmt::Pointer;
 use tokio_postgres::Client;
+use crate::db;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum IndexState {
@@ -70,6 +72,78 @@ pub struct AddIndexArgs {
     pub unique: bool,
 }
 
+pub async fn add_index(
+    client: &Client,
+    config: &MigrationConfig,
+    args: &AddIndexArgs,
+) -> Result<(), AddIndexError> {
+    let index_name = resolve_index_name(args)?;
+    let index_query = build_create_index_sql(args, &index_name)?;
+    let drop_query = build_drop_index_sql(&args.schema, &index_name)?;
+    let validity_sql = build_validity_check_sql(&args.schema, &index_name);
+
+    if config.dry_run {
+        println!("-- dry-run --");
+        run_ddl_with_retry(client, &index_query, config).await?;
+        return Ok(());
+    }
+
+    for attempt in 1..=config.max_attempts {
+        match fetch_index_state(client, &args.schema, &index_name).await? {
+            IndexState::Valid => {
+                println!("{} is already exists and valid", index_name);
+            }
+            IndexState::Invalid => {
+                eprintln!(
+                    "attempt {attempt}/{}: found invalid index '{index_name}'\
+                . Dropping before recreating them",
+                    config.max_attempts
+                );
+
+                run_ddl_with_retry(client, &drop_query, config).await?;
+            }
+            IndexState::Missing => {}
+        }
+
+        let create_result = run_ddl_with_retry(client, &index_query, config).await;
+
+        match fetch_index_state(client, &args.schema, &index_name).await? {
+            IndexState::Valid => {
+                println!("Index created successfully");
+                return Ok(());
+            }
+            IndexState::Invalid => {
+                eprintln!(
+                    "attempt {attempt}/{}: found invalid index '{index_name}'\"",
+                    config.max_attempts
+                );
+
+                run_ddl_with_retry(client, &drop_query, config).await?;
+
+                if attempt < config.max_attempts {
+                    tokio::time::sleep(db::backoff_duration(attempt, config.base_backoff_ms)).await;
+                }
+            }
+            IndexState::Missing => {
+                return Err(
+                    match create_result {
+                        Err(error) => error.into(),
+                        Ok(()) => AddIndexError::InvalidColumns {
+                            message: format!(
+                                "CREATE INDEX CONCURRENTLY finisehd but '{index_name}' not found"
+                            )
+                        }
+                    }
+                );
+            }
+        }
+    }
+
+    Err(AddIndexError::InvalidIndexPersisted {
+        index_name,
+        attempts: config.max_attempts,
+    })
+}
 pub fn resolve_index_name(args: &AddIndexArgs) -> Result<String, AddIndexError> {
     if let Some(index_name) = &args.index_name {
         validate_identifier(index_name)?;
@@ -147,14 +221,17 @@ async fn fetch_index_state(
     schema: &str,
     index_name: &str,
 ) -> Result<IndexState, AddIndexError> {
-    let rows = client.query(
-        "SELECT i.indisvalid FROM pg_class c
+    let rows = client
+        .query(
+            "SELECT i.indisvalid FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
         JOIN pg_index i ON i.indexrelid = c.oid
         WHERE n.nspname = $1
         AND c.relname = $2
         AND c.relkind = 'i'",
-        &[&schema, &index_name]).await?;
+            &[&schema, &index_name],
+        )
+        .await?;
 
     match rows.len() {
         0 => Ok(IndexState::Missing),
@@ -165,12 +242,11 @@ async fn fetch_index_state(
             } else {
                 Ok(IndexState::Invalid)
             }
-        },
+        }
         _ => Err(AddIndexError::InvalidColumns {
-            message: format!("multiple indexes name '{index_name}' in schema '{schema}'")
-        })
+            message: format!("multiple indexes name '{index_name}' in schema '{schema}'"),
+        }),
     }
-
 }
 pub fn build_drop_index_sql(schema: &str, index_name: &str) -> Result<String, AddIndexError> {
     validate_identifier(schema)?;
