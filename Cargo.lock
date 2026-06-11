@@ -1418,8 +1418,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "log",
- "rand 0.10.1",
  "testcontainers",
+ "testcontainers-modules",
  "tokio",
  "tokio-postgres",
 ]
@@ -2126,6 +2126,15 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "url",
+]
+
+[[package]]
+name = "testcontainers-modules"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5985fde5befe4ffa77a052e035e16c2da86e8bae301baa9f9904ad3c494d357"
+dependencies = [
+ "testcontainers",
 ]
 
 [[package]]
