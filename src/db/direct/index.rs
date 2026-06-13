@@ -254,7 +254,7 @@ pub fn build_drop_index_sql(schema: &str, index_name: &str) -> Result<String, Ad
 
     Ok(format!(
         "DROP INDEX CONCURRENTLY IF EXISTS \"{schema}\".\"{index_name}\""
-    ))  
+    ))
 }
 
 fn build_validity_check_sql(schema: &str, index_name: &str) -> String {

@@ -12,14 +12,23 @@
 //add-non-null
 
 use crate::config::MigrationConfig;
-use crate::db::retry::{RetryError, run_ddl_with_retry};
+use crate::db::retry::{run_ddl_with_retry, RetryError};
 use std::fmt::{Display, Formatter};
 use tokio_postgres::Client;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ConstraintState {
+    Missing,
+    Valid,
+    Invalid,
+}
 
 #[derive(Debug)]
 pub enum AddConstraintError {
     InvalidIdentifier { name: String, reason: String },
     Retry(RetryError),
+    Database(tokio_postgres::Error),
+    InvalidState(String),
 }
 
 impl Display for AddConstraintError {
@@ -29,6 +38,8 @@ impl Display for AddConstraintError {
                 write!(f, "invalid identifier '{}': {}", name, reason)
             }
             AddConstraintError::Retry(e) => write!(f, "retry error: {}", e),
+            AddConstraintError::Database(e) => write!(f, "database error: {}", e),
+            AddConstraintError::InvalidState(s) => write!(f, "invalid state: {}", s),
         }
     }
 }
@@ -40,6 +51,13 @@ impl From<RetryError> for AddConstraintError {
         AddConstraintError::Retry(e)
     }
 }
+
+impl From<tokio_postgres::Error> for AddConstraintError {
+    fn from(value: tokio_postgres::Error) -> Self {
+        AddConstraintError::Database(value)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AddCheckArgs {
     pub schema: String,
@@ -64,10 +82,55 @@ pub async fn add_check(
         return Ok(());
     }
 
+    for attempt in 1..=config.max_attempts {
+        match fetch_constraint_state(client, &constraint_name, &args.table, &args.schema).await? {
+            ConstraintState::Valid => {
+                return Ok(());
+            }
+            ConstraintState::Invalid => {
+                //run constraint validate query
+            }
+            ConstraintState::Missing => {
+                //expected
+            }
+        }
+    }
+
+    //check if already exist
+
     //check if this constraint already exist or not
     // if dry run only show queries
 
     todo!("Implement this")
+}
+
+async fn fetch_constraint_state(
+    client: &Client,
+    constraint_name: &str,
+    table: &str,
+    schema: &str,
+) -> Result<ConstraintState, AddConstraintError> {
+    let query = format!(
+        "SELECT convalidated FROM pg_constraint WHERE conrelid = '\"{schema}\".\"{table}\"'::regclass AND conname = $1;",
+    );
+
+    let rows = client.query(&query, &[&constraint_name]).await?;
+
+    match rows.len() {
+        0 => Ok(ConstraintState::Missing),
+        1 => {
+            let is_valid: bool = rows[0].get(0);
+
+            if is_valid {
+                Ok(ConstraintState::Valid)
+            } else {
+                Ok(ConstraintState::Invalid)
+            }
+        }
+        _ => Err(AddConstraintError::InvalidState(
+            "multiple constraint found".to_string(),
+        )),
+    }
 }
 
 fn resolve_add_check_constraint_name(args: &AddCheckArgs) -> Result<String, AddConstraintError> {
