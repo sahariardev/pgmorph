@@ -1,16 +1,3 @@
-// add-check
-// check if check already exist or not
-// if exist then return success
-// if not then what actually it is returning
-// if could exist partially
-// if partially complete the phase two which
-// if not then run phas1 and phase2
-// if phase 1 failes continue
-// if phase 2 fails cleanup
-
-//add-foreignkey
-//add-non-null
-
 use crate::config::MigrationConfig;
 use crate::db::retry::{run_ddl_with_retry, RetryError};
 use std::fmt::{Display, Formatter};
@@ -75,6 +62,8 @@ pub async fn add_check(
     let constraint_validate_query =
         resolve_constraint_validate_query(&args.schema, &args.table, &constraint_name)?;
 
+    let drop_chek_query = resolve_drop_check_query(&args, &constraint_name)?;
+
     if config.dry_run {
         println!("-- dry-run --");
         run_ddl_with_retry(client, &add_constraint_query, config).await?;
@@ -88,20 +77,35 @@ pub async fn add_check(
                 return Ok(());
             }
             ConstraintState::Invalid => {
-                //run constraint validate query
+                run_ddl_with_retry(client, &constraint_validate_query, config).await?;
+                continue;
             }
             ConstraintState::Missing => {
                 //expected
             }
         }
+
+        run_ddl_with_retry(client, &add_constraint_query, config).await?;
+        _ = run_ddl_with_retry(client, &constraint_validate_query, config).await;
+
+        match fetch_constraint_state(client, &constraint_name, &args.table, &args.schema).await? {
+            ConstraintState::Valid => {
+                return Ok(());
+            }
+            ConstraintState::Invalid => {
+                _ = run_ddl_with_retry(client, &drop_chek_query, config).await;
+            }
+            ConstraintState::Missing => {
+                return Err(AddConstraintError::InvalidState(
+                    "Invalid State".to_string(),
+                ));
+            }
+        }
     }
 
-    //check if already exist
-
-    //check if this constraint already exist or not
-    // if dry run only show queries
-
-    todo!("Implement this")
+    Err(AddConstraintError::InvalidState(
+        "Invalid state".to_string(),
+    ))
 }
 
 async fn fetch_constraint_state(
@@ -148,6 +152,16 @@ fn resolve_add_check_phase_one_query(
 
     Ok(format!(
         "ALTER TABLE \"{}\".\"{}\" ADD CONSTRAINT {} CHECK {} NOT VALID",
+        args.schema, args.table, constraint_name, args.rule
+    ))
+}
+
+fn resolve_drop_check_query(
+    args: &AddCheckArgs,
+    constraint_name: &str,
+) -> Result<String, AddConstraintError> {
+    Ok(format!(
+        "ALTER TABLE \"{}\".\"{}\" DROP CONSTRAINT {} CHECK {}",
         args.schema, args.table, constraint_name, args.rule
     ))
 }
