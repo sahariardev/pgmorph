@@ -52,17 +52,65 @@ pub struct AddCheckArgs {
     pub constraint_name: String,
     pub rule: String,
 }
-pub async fn add_check(
+
+#[derive(Debug, Clone)]
+pub struct AddForeignKeyArgs {
+    pub schema: String,
+    pub table: String,
+    pub constraint_name: Option<String>,
+    pub column: String, //currently only one column allowed
+    pub foreign_table_name: String,
+    pub foreign_column_name: String,
+}
+
+pub async fn handle_add_foreign_keys(
+    client: &Client,
+    config: &MigrationConfig,
+    args: &AddForeignKeyArgs,
+) -> Result<(), AddConstraintError> {
+    let constraint_name = resolve_add_foreign_key_constraint_name(args)?;
+    let add_constraint_query = resolve_add_foreign_key_query(args, &constraint_name)?;
+    handle_add_constraint(
+        client,
+        config,
+        &constraint_name,
+        &add_constraint_query,
+        &args.schema,
+        &args.table,
+    )
+    .await
+}
+
+pub async fn handle_add_check(
     client: &Client,
     config: &MigrationConfig,
     args: &AddCheckArgs,
 ) -> Result<(), AddConstraintError> {
     let constraint_name = resolve_add_check_constraint_name(args)?;
     let add_constraint_query = resolve_add_check_phase_one_query(args, &constraint_name)?;
-    let constraint_validate_query =
-        resolve_constraint_validate_query(&args.schema, &args.table, &constraint_name)?;
+    handle_add_constraint(
+        client,
+        config,
+        &constraint_name,
+        &add_constraint_query,
+        &args.schema,
+        &args.table,
+    )
+    .await
+}
 
-    let drop_chek_query = resolve_drop_check_query(&args, &constraint_name)?;
+async fn handle_add_constraint(
+    client: &Client,
+    config: &MigrationConfig,
+    constraint_name: &str,
+    add_constraint_query: &str,
+    schema: &str,
+    table: &str,
+) -> Result<(), AddConstraintError> {
+    let constraint_validate_query =
+        resolve_constraint_validate_query(schema, table, constraint_name)?;
+
+    let drop_chek_query = resolve_drop_check_query(schema, table, constraint_name)?;
 
     if config.dry_run {
         println!("-- dry-run --");
@@ -72,7 +120,7 @@ pub async fn add_check(
     }
 
     for attempt in 1..=config.max_attempts {
-        match fetch_constraint_state(client, &constraint_name, &args.table, &args.schema).await? {
+        match fetch_constraint_state(client, &constraint_name, table, schema).await? {
             ConstraintState::Valid => {
                 return Ok(());
             }
@@ -88,7 +136,7 @@ pub async fn add_check(
         run_ddl_with_retry(client, &add_constraint_query, config).await?;
         _ = run_ddl_with_retry(client, &constraint_validate_query, config).await;
 
-        match fetch_constraint_state(client, &constraint_name, &args.table, &args.schema).await? {
+        match fetch_constraint_state(client, &constraint_name, table, schema).await? {
             ConstraintState::Valid => {
                 return Ok(());
             }
@@ -142,6 +190,19 @@ fn resolve_add_check_constraint_name(args: &AddCheckArgs) -> Result<String, AddC
     Ok(args.constraint_name.clone())
 }
 
+fn resolve_add_foreign_key_constraint_name(
+    args: &AddForeignKeyArgs,
+) -> Result<String, AddConstraintError> {
+    if let Some(constraint_name) = &args.constraint_name {
+        validate_identifier(constraint_name)?;
+        return Ok(constraint_name.clone());
+    }
+    Ok(format!(
+        "{}_{}_{}_fkey",
+        args.table, args.foreign_table_name, args.foreign_column_name
+    ))
+}
+
 fn resolve_add_check_phase_one_query(
     args: &AddCheckArgs,
     constraint_name: &str,
@@ -151,18 +212,40 @@ fn resolve_add_check_phase_one_query(
     validate_identifier(&args.rule)?;
 
     Ok(format!(
-        "ALTER TABLE \"{}\".\"{}\" ADD CONSTRAINT {} CHECK {} NOT VALID",
+        "ALTER TABLE \"{}\".\"{}\" ADD CONSTRAINT {} CHECK {} NOT VALID;",
         args.schema, args.table, constraint_name, args.rule
     ))
 }
 
+fn resolve_add_foreign_key_query(
+    args: &AddForeignKeyArgs,
+    constraint_name: &str,
+) -> Result<String, AddConstraintError> {
+    validate_identifier(&args.schema)?;
+    validate_identifier(&args.table)?;
+    validate_identifier(&args.foreign_table_name)?;
+    validate_identifier(&args.foreign_column_name)?;
+    validate_identifier(&args.column)?;
+
+    Ok(format!(
+        "ALTER TABLE \"{}\".\"{}\" ADD CONSTRAINT {} FOREIGN KEY {} REFERENCE {}({}) NOT VALID;",
+        args.schema,
+        args.table,
+        constraint_name,
+        args.column,
+        args.foreign_table_name,
+        args.foreign_column_name,
+    ))
+}
+
 fn resolve_drop_check_query(
-    args: &AddCheckArgs,
+    schema: &str,
+    table: &str,
     constraint_name: &str,
 ) -> Result<String, AddConstraintError> {
     Ok(format!(
-        "ALTER TABLE \"{}\".\"{}\" DROP CONSTRAINT {} CHECK {}",
-        args.schema, args.table, constraint_name, args.rule
+        "ALTER TABLE \"{}\".\"{}\" DROP CONSTRAINT {}",
+        schema, table, constraint_name
     ))
 }
 
