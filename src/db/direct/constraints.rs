@@ -62,6 +62,24 @@ pub struct AddForeignKeyArgs {
     pub foreign_table_name: String,
     pub foreign_column_name: String,
 }
+// Example query
+// ALTER TABLE users
+// ADD CONSTRAINT users_email_not_null
+// CHECK (email IS NOT NULL)
+// NOT VALID;
+//
+// ALTER TABLE users
+// VALIDATE CONSTRAINT users_email_not_null;
+//
+// ALTER TABLE users
+// ALTER COLUMN email SET NOT NULL;
+//
+// ALTER TABLE users
+// DROP CONSTRAINT users_email_not_null;
+#[derive(Debug, Clone)]
+pub struct AddNonNull {
+
+}
 
 pub async fn handle_add_foreign_keys(
     client: &Client,
