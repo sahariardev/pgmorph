@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pgmorph - Zero-Downtime PostgreSQL Migrations</title>
+    <style>
+        :root {
+            --bg-color: #1c1c1c;
+            --card-bg: #2a2a2a;
+            --text-primary: #ededed;
+            --text-secondary: #a0a0a0;
+            --brand-color: #3ecf8e;
+            --brand-dark: #2e9668;
+            --border-color: #333333;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        nav {
+            padding: 2rem 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--brand-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .hero {
+            padding: 6rem 0;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+            background: linear-gradient(to bottom right, #fff, #a0a0a0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 2.5rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background-color: var(--brand-color);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background-color: #4ade9e;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: var(--card-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            margin-left: 1rem;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--text-secondary);
+        }
+
+        .features {
+            padding: 4rem 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            transition: border-color 0.2s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--brand-color);
+        }
+
+        .feature-card h3 {
+            margin-bottom: 1rem;
+            color: var(--brand-color);
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .code-section {
+            padding: 4rem 0;
+        }
+
+        .code-window {
+            background-color: #0d0d0d;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .code-header {
+            background-color: #1a1a1a;
+            padding: 0.75rem 1rem;
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #ff5f56; }
+        .dot-yellow { background: #ffbd2e; }
+        .dot-green { background: #27c93f; }
+
+        pre {
+            padding: 1.5rem;
+            overflow-x: auto;
+            color: #d4d4d4;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+        }
+
+        .keyword { color: #569cd6; }
+        .string { color: #ce9178; }
+        .comment { color: #6a9955; }
+        .function { color: #dcdcaa; }
+
+        footer {
+            padding: 4rem 0;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .btn-secondary { margin-left: 0; margin-top: 1rem; display: block; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="#" class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                pgmorph
+            </a>
+            <div class="nav-links">
+                <a href="https://github.com" style="color: var(--text-secondary); text-decoration: none;">GitHub</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <h1>Zero-downtime migrations<br>for PostgreSQL</h1>
+            <p>Safely evolve your database schema without locking tables or interrupting your users. Built for high-availability production environments.</p>
+            <div class="hero-btns">
+                <a href="#install" class="btn btn-primary">Get Started</a>
+                <a href="https://github.com" class="btn btn-secondary">View on GitHub</a>
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="feature-card">
+                <h3>Safe Constraints</h3>
+                <p>Adds CHECK and FOREIGN KEY constraints using NOT VALID to avoid heavy locking. Validates background data separately.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Smart Not-Null</h3>
+                <p>Migration workflow for adding NOT NULL constraints to existing columns without full table rewrites or long locks.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Retry & Backoff</h3>
+                <p>Intelligent lock acquisition strategy with configurable timeouts and exponential backoff to ensure success.</p>
+            </div>
+        </section>
+
+        <section class="code-section" id="install">
+            <h2 style="margin-bottom: 2rem; text-align: center;">CLI Command Reference</h2>
+            <div class="code-window">
+                <div class="code-header">
+                    <div class="dot dot-red"></div>
+                    <div class="dot dot-yellow"></div>
+                    <div class="dot dot-green"></div>
+                </div>
+                <pre><code><span class="comment"># Introspect a table</span>
+$ pgmorph introspect --table users
+
+<span class="comment"># Add a column safely</span>
+$ pgmorph add-column \
+    --table users \
+    --column bio \
+    --type text \
+    --default "'no bio'"
+
+<span class="comment"># Add a check constraint without locking</span>
+$ pgmorph add-check \
+    --table users \
+    --constraint-name email_check \
+    --rule "email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'"
+
+<span class="comment"># Add a foreign key without locking the table</span>
+$ pgmorph add-foreign-key \
+    --table orders \
+    --column user_id \
+    --foreign-table-name users \
+    --foreign-column-name id \
+    --on-delete cascade
+
+<span class="comment"># Set NOT NULL safely on an existing column</span>
+$ pgmorph set-not-null-args \
+    --table users \
+    --column email
+
+<span class="comment"># Preview any command with dry-run</span>
+$ pgmorph add-column --table users --column bio --type text --dry-run</code></pre>
+            </div>
+        </section>
+
+        <section class="code-section">
+            <h2 style="margin-bottom: 2rem; text-align: center;">Native Rust Library</h2>
+            <div class="code-window">
+                <div class="code-header">
+                    <div class="dot dot-red"></div>
+                    <div class="dot dot-yellow"></div>
+                    <div class="dot dot-green"></div>
+                </div>
+                <pre><code><span class="keyword">use</span> pgmorph::db::{connect, direct::add_column};
+<span class="keyword">use</span> pgmorph::config::MigrationConfig;
+
+<span class="keyword">let</span> client = connect(<span class="string">"..."</span>).<span class="keyword">await</span>?;
+<span class="keyword">let</span> config = MigrationConfig::default();
+
+<span class="function">add_column</span>(&client, &config, &AddColumnArgs {
+    table: <span class="string">"users"</span>.into(),
+    column: <span class="string">"active"</span>.into(),
+    data_type: <span class="string">"boolean"</span>.into(),
+    default: <span class="function">Some</span>(<span class="string">"true"</span>.into()),
+    ..Default::default()
+}).<span class="keyword">await</span>?;</code></pre>
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 pgmorph contributors. MIT Licensed.</p>
+        </footer>
+    </div>
+</body>
+</html>
