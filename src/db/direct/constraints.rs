@@ -1,5 +1,5 @@
 use crate::config::MigrationConfig;
-use crate::db::retry::{run_ddl_with_retry, RetryError};
+use crate::db::retry::{RetryError, run_ddl_with_retry};
 use std::fmt::{Display, Formatter};
 use tokio_postgres::Client;
 
@@ -62,23 +62,39 @@ pub struct AddForeignKeyArgs {
     pub foreign_table_name: String,
     pub foreign_column_name: String,
 }
-// Example query
-// ALTER TABLE users
-// ADD CONSTRAINT users_email_not_null
-// CHECK (email IS NOT NULL)
-// NOT VALID;
-//
-// ALTER TABLE users
-// VALIDATE CONSTRAINT users_email_not_null;
-//
-// ALTER TABLE users
-// ALTER COLUMN email SET NOT NULL;
-//
-// ALTER TABLE users
-// DROP CONSTRAINT users_email_not_null;
-#[derive(Debug, Clone)]
-pub struct AddNonNull {
 
+#[derive(Debug, Clone)]
+pub struct AddNonNullArgs {
+    pub schema: String,
+    pub table: String,
+    pub column: String,
+}
+
+pub async fn handle_add_non_null_keys(
+    client: &Client,
+    config: &MigrationConfig,
+    args: &AddNonNullArgs,
+) -> Result<(), AddConstraintError> {
+    let constraint_name = resolve_non_null_constraint_name(args)?;
+    let add_constraint_query = resolve_add_check_phase_one_query(
+        &args.schema,
+        &args.table,
+        &constraint_name,
+        &format!("{} is not null", &args.column),
+    )?;
+
+    let add_non_null_constraint_query = resolve_non_null_constraint_query(&args.schema, &args.table, &args.column);
+
+    handle_add_constraint(
+        client,
+        config,
+        &constraint_name,
+        &add_constraint_query,
+        &args.schema,
+        &args.table,
+        Some(&add_non_null_constraint_query),
+    )
+    .await
 }
 
 pub async fn handle_add_foreign_keys(
@@ -95,6 +111,7 @@ pub async fn handle_add_foreign_keys(
         &add_constraint_query,
         &args.schema,
         &args.table,
+        None,
     )
     .await
 }
@@ -105,7 +122,8 @@ pub async fn handle_add_check(
     args: &AddCheckArgs,
 ) -> Result<(), AddConstraintError> {
     let constraint_name = resolve_add_check_constraint_name(args)?;
-    let add_constraint_query = resolve_add_check_phase_one_query(args, &constraint_name)?;
+    let add_constraint_query =
+        resolve_add_check_phase_one_query(&args.schema, &args.table, &constraint_name, &args.rule)?;
     handle_add_constraint(
         client,
         config,
@@ -113,6 +131,7 @@ pub async fn handle_add_check(
         &add_constraint_query,
         &args.schema,
         &args.table,
+        None,
     )
     .await
 }
@@ -124,6 +143,7 @@ async fn handle_add_constraint(
     add_constraint_query: &str,
     schema: &str,
     table: &str,
+    post_constraint_migration_sql: Option<&str>,
 ) -> Result<(), AddConstraintError> {
     let constraint_validate_query =
         resolve_constraint_validate_query(schema, table, constraint_name)?;
@@ -134,12 +154,18 @@ async fn handle_add_constraint(
         println!("-- dry-run --");
         run_ddl_with_retry(client, &add_constraint_query, config).await?;
         run_ddl_with_retry(client, &constraint_validate_query, config).await?;
+        if let Some(query) = post_constraint_migration_sql {
+            run_ddl_with_retry(client, query, config).await?;
+        }
         return Ok(());
     }
 
     for attempt in 1..=config.max_attempts {
         match fetch_constraint_state(client, &constraint_name, table, schema).await? {
             ConstraintState::Valid => {
+                if let Some(query) = post_constraint_migration_sql {
+                    run_ddl_with_retry(client, query, config).await?;
+                }
                 return Ok(());
             }
             ConstraintState::Invalid => {
@@ -156,6 +182,9 @@ async fn handle_add_constraint(
 
         match fetch_constraint_state(client, &constraint_name, table, schema).await? {
             ConstraintState::Valid => {
+                if let Some(query) = post_constraint_migration_sql {
+                    run_ddl_with_retry(client, query, config).await?;
+                }
                 return Ok(());
             }
             ConstraintState::Invalid => {
@@ -221,17 +250,23 @@ fn resolve_add_foreign_key_constraint_name(
     ))
 }
 
+fn resolve_non_null_constraint_name(args: &AddNonNullArgs) -> Result<String, AddConstraintError> {
+    Ok(format!("{}_{}_nonNull", args.table, args.column))
+}
+
 fn resolve_add_check_phase_one_query(
-    args: &AddCheckArgs,
+    schema: &str,
+    table: &str,
     constraint_name: &str,
+    rule: &str,
 ) -> Result<String, AddConstraintError> {
-    validate_identifier(&args.schema)?;
-    validate_identifier(&args.table)?;
-    validate_identifier(&args.rule)?;
+    validate_identifier(schema)?;
+    validate_identifier(table)?;
+    validate_identifier(rule)?;
 
     Ok(format!(
         "ALTER TABLE \"{}\".\"{}\" ADD CONSTRAINT {} CHECK {} NOT VALID;",
-        args.schema, args.table, constraint_name, args.rule
+        schema, table, constraint_name, rule
     ))
 }
 
@@ -276,6 +311,17 @@ fn resolve_constraint_validate_query(
         "ALTER TABLE \"{}\".\"{}\" VALIDATE CONSTRAINT {}",
         schema, table, constraint_name
     ))
+}
+
+fn resolve_non_null_constraint_query(
+    schema: &str,
+    table: &str,
+    column: &str,
+) -> String {
+    format!(
+        "ALTER TABLE \"{}\".\"{}\" ALTER COLUMN {} SET NOT NULL",
+        schema, table, column
+    )
 }
 
 fn validate_identifier(name: &str) -> Result<(), AddConstraintError> {
