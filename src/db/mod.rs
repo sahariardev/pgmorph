@@ -1,7 +1,7 @@
 mod connect;
 mod introspect;
 mod retry;
-mod direct;
+pub mod direct;
 
 pub use connect::connect;
 pub use introspect::introspect_table;

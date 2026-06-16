@@ -42,6 +42,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             db::add_column(&client, &migration_config, &args).await?;
         }
+        Some(Command::AddCheck {
+            table,
+            schema,
+            constraint_name,
+            rule,
+        }) => {
+            let args = db::direct::AddCheckArgs {
+                schema,
+                table,
+                constraint_name,
+                rule,
+            };
+
+            db::direct::handle_add_check(&client, &migration_config, &args).await?;
+        }
+        Some(Command::AddForeignKey {
+            table,
+            schema,
+            constraint_name,
+            column,
+            foreign_table_name,
+            foreign_column_name,
+            on_delete,
+        }) => {
+            let args = db::direct::AddForeignKeyArgs {
+                schema,
+                table,
+                constraint_name,
+                column,
+                foreign_table_name,
+                foreign_column_name,
+            };
+
+            db::direct::handle_add_foreign_keys(&client, &migration_config, &args).await?;
+        }
+        Some(Command::SetNotNullArgs {
+            table,
+            schema,
+            column,
+        }) => {
+            let args = db::direct::AddNonNullArgs {
+                schema,
+                table,
+                column,
+            };
+
+            db::direct::handle_add_non_null_keys(&client, &migration_config, &args).await?;
+        }
     }
 
     Ok(())

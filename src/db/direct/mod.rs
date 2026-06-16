@@ -4,3 +4,4 @@ mod constraints;
 
 pub use columns::*;
 pub use index::*;
+pub use constraints::*;

@@ -104,6 +104,6 @@ pub enum Command {
         schema: String,
 
         #[arg(long)]
-        constraint_name: String,
+        column: String,
     },
 }
