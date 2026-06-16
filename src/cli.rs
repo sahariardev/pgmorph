@@ -1,9 +1,12 @@
-use clap::{Parser, Subcommand};
-
-const DEFAULT_DATABASE_URL: &str = "host=localhost port=5433 user=pgmorph password=pgmorph dbname=pgmorph";
+use clap::{Parser, Subcommand, ValueEnum};
+const DEFAULT_DATABASE_URL: &str =
+    "host=localhost port=5433 user=pgmorph password=pgmorph dbname=pgmorph";
 
 #[derive(Parser, Debug)]
-#[command(name = "pgmorph", about = "Zero-downtime schema migration for postgresql")]
+#[command(
+    name = "pgmorph",
+    about = "Zero-downtime schema migration for postgresql"
+)]
 pub struct Cli {
     #[arg(long, env = "DATABASE_URL", default_value = DEFAULT_DATABASE_URL, global = true)]
     pub database_url: String,
@@ -18,7 +21,14 @@ pub struct Cli {
     pub max_attempts: u32,
 
     #[command(subcommand)]
-    pub command: Option<Command>
+    pub command: Option<Command>,
+}
+#[derive(Debug, Clone, ValueEnum)]
+pub enum OnDeleteAction {
+    Restrict,
+    SetNull,
+    Cascade,
+    NoAction,
 }
 
 #[derive(Subcommand, Debug)]
@@ -28,7 +38,7 @@ pub enum Command {
         table: String,
 
         #[arg(long, default_value = "public")]
-        schema: String
+        schema: String,
     },
 
     AddColumn {
@@ -49,5 +59,51 @@ pub enum Command {
 
         #[arg(long)]
         not_null: bool,
-    }
+    },
+
+    AddCheck {
+        #[arg(long)]
+        table: String,
+
+        #[arg(long, default_value = "public")]
+        schema: String,
+
+        #[arg(long)]
+        constraint_name: String,
+
+        #[arg(long)]
+        rule: String,
+    },
+
+    AddForeignKey {
+        #[arg(long)]
+        table: String,
+
+        #[arg(long, default_value = "public")]
+        schema: String,
+
+        #[arg(long)]
+        constraint_name: Option<String>,
+
+        #[arg(long)]
+        column: String,
+
+        #[arg(long)]
+        foreign_table_name: String,
+
+        #[arg(long)]
+        foreign_column_name: String,
+
+        on_delete: OnDeleteAction,
+    },
+    SetNotNullArgs {
+        #[arg(long)]
+        table: String,
+
+        #[arg(long, default_value = "public")]
+        schema: String,
+
+        #[arg(long)]
+        constraint_name: String,
+    },
 }
