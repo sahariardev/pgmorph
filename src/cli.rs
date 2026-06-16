@@ -96,7 +96,7 @@ pub enum Command {
 
         on_delete: OnDeleteAction,
     },
-    SetNotNullArgs {
+    SetNotNull {
         #[arg(long)]
         table: String,
 

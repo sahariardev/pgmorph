@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             db::direct::handle_add_foreign_keys(&client, &migration_config, &args).await?;
         }
-        Some(Command::SetNotNullArgs {
+        Some(Command::SetNotNull {
             table,
             schema,
             column,
