@@ -160,7 +160,7 @@ async fn handle_add_constraint(
         return Ok(());
     }
 
-    for attempt in 1..=config.max_attempts {
+    for _ in 1..=config.max_attempts {
         match fetch_constraint_state(client, &constraint_name, table, schema).await? {
             ConstraintState::Valid => {
                 if let Some(query) = post_constraint_migration_sql {

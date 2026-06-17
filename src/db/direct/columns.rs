@@ -62,7 +62,7 @@ pub fn build_add_column_sql(args: &AddColumnArgs) -> Result<String, AddColumnErr
         });
     }
 
-    let qualified_table = format!("{}.{}", args.table, args.schema);
+    let qualified_table = format!("\"{}\".\"{}\"", args.schema, args.table);
     let mut sql = format!(
         "ALTER TABLE {qualified_table} ADD COLUMN IF NOT EXISTS \"{}\" {}", args.column, args.data_type
     );
@@ -111,7 +111,7 @@ fn validate_identifier(name: &str) -> Result<(), AddColumnError> {
     {
         return Err(AddColumnError::InvalidIdentifier {
             name: name.to_string(),
-            reason: "identifier must start with an underscore".to_string(),
+            reason: "identifier can only contain alphanumeric characters and underscores".to_string(),
         });
     }
 

@@ -1,6 +1,5 @@
 use crate::config::MigrationConfig;
 use crate::db::retry::{run_ddl_with_retry, RetryError};
-use std::fmt::Pointer;
 use tokio_postgres::Client;
 use crate::db;
 
@@ -80,7 +79,6 @@ pub async fn add_index(
     let index_name = resolve_index_name(args)?;
     let index_query = build_create_index_sql(args, &index_name)?;
     let drop_query = build_drop_index_sql(&args.schema, &index_name)?;
-    let validity_sql = build_validity_check_sql(&args.schema, &index_name);
 
     if config.dry_run {
         println!("-- dry-run --");
@@ -173,7 +171,7 @@ fn validate_identifier(name: &str) -> Result<(), AddIndexError> {
     {
         return Err(AddIndexError::InvalidIdentifier {
             name: name.to_string(),
-            reason: "identifier must start with an underscore".to_string(),
+            reason: "identifier can only contain alphanumeric characters and underscores".to_string(),
         });
     }
 
