@@ -1,28 +1,18 @@
+mod common;
 use pgmorph::config::MigrationConfig;
 use pgmorph::db::AddIndexArgs;
-use pgmorph::db::{add_index, connect};
-use std::sync::Arc;
+use pgmorph::db::add_index;
 use std::sync::atomic::{AtomicBool, Ordering};
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::postgres::Postgres;
+use std::sync::Arc;
+
+use common::*;
 
 #[tokio::test]
 async fn add_index_builds_valid_index_under_concurrent_insers() {
-    let postgres = Postgres::default().start().await.expect("Start postgres");
+    let db = TestDB::new().await;
+    let writer = db.second_client().await;
 
-    let host = postgres.get_host().await.expect("host");
-    let port = postgres
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("mapped port");
-
-    let database_url =
-        format!("host={host} port={port} user=postgres password=postgres dbname=postgres");
-
-    let client = connect(&database_url).await.expect("connect main client");
-    let writer = connect(&database_url).await.expect("connect writer");
-
-    client
+    db.client
         .batch_execute(
                 "CREATE TABLE workload(
                         id bigserial PRIMARY KEY,
@@ -64,7 +54,7 @@ async fn add_index_builds_valid_index_under_concurrent_insers() {
         unique: false,
     };
 
-    add_index(&client, &config, &args)
+    add_index(&db.client, &config, &args)
         .await
         .expect("add_index under concurrent insert");
 
@@ -74,7 +64,8 @@ async fn add_index_builds_valid_index_under_concurrent_insers() {
         .await
         .expect("insert should stop");
 
-    let row = client
+    let row = db
+        .client
         .query_one(
             "SELECT i.indisvalid, i.indisready
         FROM pg_class c 
