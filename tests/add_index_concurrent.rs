@@ -9,7 +9,7 @@ use common::*;
 
 #[tokio::test]
 async fn add_index_builds_valid_index_under_concurrent_insers() {
-    let db = TestDB::new().await;
+    let db = TestDB::start().await;
     let writer = db.second_client().await;
 
     db.client

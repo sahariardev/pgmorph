@@ -27,7 +27,7 @@ fn args(table: &str, column: &str, data_type: &str) -> AddColumnArgs {
 
 #[tokio::test]
 async fn test_add_column() {
-    let db = TestDB::new().await;
+    let db = TestDB::start().await;
 
     db.client
         .batch_execute(

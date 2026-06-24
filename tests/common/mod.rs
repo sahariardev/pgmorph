@@ -10,7 +10,7 @@ pub struct TestDB {
 }
 
 impl TestDB {
-    pub async fn new() -> TestDB {
+    pub async fn start() -> TestDB {
         let postgres = Postgres::default().start().await.expect("Start postgres");
 
         let host = postgres.get_host().await.expect("host");
@@ -51,7 +51,7 @@ pub async fn create_test_table(client: &Client, suffix: &str) -> String {
                 id bigserial PRIMARY KEY,
                 amount numeric NOT NULL,
                 status text,
-                created_at timestamptz NOT NULL DEFAULT now(),
+                created_at timestamptz NOT NULL DEFAULT now()
             )"
         ))
         .await
