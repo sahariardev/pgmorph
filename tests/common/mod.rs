@@ -65,8 +65,14 @@ pub async fn create_fk_table(client: &Client, suffix: &str) -> (String, String) 
     let child = format!("c_{suffix}");
     client
         .batch_execute(&format!(
-            "CREATE TABLE {parent} (id bigserial PRIMARY KEY, name text NOT NULL);
-             CREATE TABLE {child} (id bigserial PRIMARY KEY, parent_id bigint);"
+            "CREATE TABLE {parent} (
+                id bigserial PRIMARY KEY,
+                name text NOT NULL
+            );
+             CREATE TABLE {child} (
+                id bigserial PRIMARY KEY,
+                parent_id bigint REFERENCES {parent}(id) ON DELETE CASCADE
+             );"
         ))
         .await
         .unwrap_or_else(|e| panic!("Create table failed: {}", e));

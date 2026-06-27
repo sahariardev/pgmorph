@@ -103,3 +103,31 @@ async fn introspect_reports_seconday_index_after_creation() {
     assert!(!sec.is_primary, "secondary index is not primary");
     assert!(sec.columns.contains(&"status".to_string()));
 }
+
+#[tokio::test]
+async fn introspect_reports_foreign_key_after_creation() {
+    let db = common::TestDB::start().await;
+    let (parent_table, child_table) = common::create_fk_table(&db.client, "intro_cols").await;
+
+    let info = pgmorph::db::introspect_table(&db.client, "public", &child_table)
+        .await
+        .expect("introspection table introspector");
+
+    let fkey = info
+        .foreign_keys
+        .iter()
+        .find(|f| f.columns.len() == 1 && f.columns.get(0).unwrap() == "parent_id");
+
+    assert!(fkey.is_some(), "foreign key present");
+    let fkey = fkey.unwrap();
+    assert_eq!(
+        fkey.reference_table, parent_table,
+        "foreign key reference table"
+    );
+    assert_eq!(fkey.columns.len(), 1);
+    assert_eq!(fkey.references_columns.len(), 1);
+    assert_eq!(
+        fkey.references_columns[0], "id",
+        "foreign key references column"
+    );
+}
